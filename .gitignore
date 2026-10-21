@@ -1,0 +1,5 @@
+# Project exclude paths
+/CMakeFiles/
+/src/CMakeFiles/
+/build
+/.idea
