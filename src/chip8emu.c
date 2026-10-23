@@ -63,6 +63,7 @@ struct chip8_instruction decode_inst(uint16_t instruction) {
 
     struct chip8_instruction decoded_instruction;
 
+    decoded_instruction.full_inst = instruction;
     decoded_instruction.opcode = instruction >> 12;
     decoded_instruction.register_x = (instruction >> 8) & 0xF;
     decoded_instruction.register_y = (instruction >> 4) & 0xF;
@@ -75,20 +76,132 @@ struct chip8_instruction decode_inst(uint16_t instruction) {
 
 
 void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
+    if (inst.full_inst == 0x00E0) {
+        clear_display(memory);
 
+    } else if (inst.full_inst == 0x00EE) {
+        //Return from subroutine to address pull from stack
+        if (memory->stack_pointer == STACK_TOP) {
+            fprintf(stderr, "Tried to return from subroutine with an empty stack, aborting...");
+            exit(-1);
+
+            return;
+        }
+        uint16_t jump = pop_stack(memory) << 8;
+        jump |= pop_stack(memory);
+
+        memory->program_counter = jump;
+    }
 
     switch (inst.opcode) {
-
-        case 0x00E0:
-            clear_display(memory);
+        case 0:
+            printf("0mmm instruction is ignored");
             break;
+
+        case 1:
+            //1mmm: Jump to address at mmm
+            if (mem_check_bounds(inst.address) == 0) {
+                fprintf(stderr, "Jumping out of program memory bounds, aborting...");
+                exit(-1);
+            }
+
+            break;
+        case 2:
+            //2mmm: push return address onto stack and call subroutine at address mmm
+            if (mem_check_bounds(inst.address) == 0) {
+                fprintf(stderr, "Jumping out of program memory bounds, aborting...");
+                exit(-1);
+            }
+
+            uint16_t pc_stack = memory->program_counter + 2;
+            push_stack(memory,pc_stack & 0xFF);
+            push_stack(memory,pc_stack >> 8);
+
+            memory->program_counter = inst.address;
+            break;
+        case 3:
+            uint8_t reg_value = read_register(memory, inst.register_x);
+            if (reg_value == inst.kk_value) {
+                memory->program_counter += 2;
+            }
+
+            break;
+        case 4:
+            reg_value = read_register(memory, inst.register_x);
+            if (reg_value != inst.kk_value) {
+                memory->program_counter += 2;
+            }
+
+            break;
+        case 5:
+            reg_value = read_register(memory, inst.register_x);
+            uint8_t reg_value_y = read_register(memory, inst.register_y);
+            if (reg_value == reg_value_y) {
+                memory->program_counter += 2;
+            }
+
+            break;
+        case 6:
+            write_register(memory,inst.register_x, inst.kk_value);
+            break;
+        case 7:
+            reg_value = read_register(memory, inst.register_x);
+            write_register(memory,inst.register_x, reg_value + inst.kk_value);
+        case 8:
+            
 
         default: printf("Instruction not found or implemented: %d", inst.opcode);
     }
 
 }
 
+void push_stack(struct chip8_mem *memory, uint8_t value) {
+    if (memory->stack_pointer == STACK_LOW) {
+        fprintf(stderr,"Stack overflow, aborting...");
+        exit(-1);
+        return;
+    }
+
+    mem_write(memory, --memory->stack_pointer, value);
+}
+
+uint8_t pop_stack(struct chip8_mem *memory) {
+    if (memory->stack_pointer == STACK_TOP) {
+        fprintf(stderr,"Stack underflow, aborting...");
+        exit(-1);
+        return 0;
+    }
+
+    return mem_read(memory, ++memory->stack_pointer);
+}
+
+uint8_t read_register(struct chip8_mem* memory, uint8_t reg_num) {
+    if (reg_num > 0xF) {
+        fprintf(stderr,"Invalid register index");
+        exit(-1);
+        return 0;
+    }
+
+    return mem_read(memory, 0xEF0 + (uint16_t) reg_num);
+}
+
+void write_register(struct chip8_mem* memory, uint8_t reg_num, uint8_t value) {
+    if (reg_num > 0xF) {
+        fprintf(stderr,"Invalid register index");
+        exit(-1);
+        return;
+    }
+
+    mem_write(memory, 0xEF0 + (uint16_t) reg_num, value);
+}
+
+int mem_check_bounds(const uint16_t address) {
+    return address >= PROGRAM_START && address <= PROGRAM_END ? 1 : 0;
+}
+
+
 void clear_display(struct chip8_mem *memory) {
+    memset(memory->display,0, sizeof(memory->display));
 }
 
 void mem_write(struct chip8_mem* memory, uint16_t address, uint8_t val) {
