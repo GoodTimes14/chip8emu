@@ -148,7 +148,86 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
             reg_value = read_register(memory, inst.register_x);
             write_register(memory,inst.register_x, reg_value + inst.kk_value);
         case 8:
-            
+            /* 8xy0	set Vx to the value of Vy
+             * 8xy1	set Vx to the result of bitwise Vx OR Vy, set VF to 0, even if x is F! (VF is written last)
+             * 8xy2	set Vx to the result of bitwise Vx AND Vy, set VF to 0, even if x is F! (VF is written last)
+             * 8xy3	set Vx to the result of bitwise Vx XOR Vy, set VF to 0, even if x is F! (VF is written last)
+             * 8xy4	add Vy to Vx, VF is set to 1 if an overflow happened, to 0 if not, even if x=F! (VF is written last)
+             * 8xy5	subtract Vy from Vx, VF is set to 0 if an underflow happened, to 1 if not, even if x=F! (VF is written last)
+             * 8xy6	set Vx to Vy and shift Vx one bit to the right, set VF to the bit shifted out, even if x=F! (VF is written last)
+             * 8xy7	set Vx to the result of subtracting Vx from Vy, VF is set to 0 if an underflow happened, to 1 if not, even if x=F! (VF is written last)
+             * 8xyE	set Vx to Vy and shift Vx one bit to the left, set VF to the bit shifted out, even if x=F! (VF is written last)
+             */
+            switch (inst.n_value) {
+                case 0:
+                    reg_value = read_register(memory, inst.register_x);
+                    write_register(memory,inst.register_y, reg_value);
+                    break;
+                case 1:
+                    reg_value = read_register(memory, inst.register_x);
+                    reg_value_y = read_register(memory, inst.register_y);
+                    write_register(memory,inst.register_y, reg_value | reg_value_y);
+                    write_register(memory,0xF, 0);
+                    break;
+                case 2:
+                    reg_value = read_register(memory, inst.register_x);
+                    reg_value_y = read_register(memory, inst.register_y);
+                    write_register(memory,inst.register_y, reg_value & reg_value_y);
+                    write_register(memory,0xF, 0);
+                    break;
+                case 3:
+                    reg_value = read_register(memory, inst.register_x);
+                    reg_value_y = read_register(memory, inst.register_y);
+                    write_register(memory,inst.register_y, reg_value ^ reg_value_y);
+                    write_register(memory,0xF, 0);
+                    break;
+                case 4:
+                    reg_value = read_register(memory, inst.register_x);
+                    reg_value_y = read_register(memory, inst.register_y);
+                    uint8_t sum = reg_value + reg_value_y;
+                    write_register(memory,inst.register_x, sum);
+                    write_register(memory,0xF, sum < reg_value ? 1 : 0);
+                    break;
+                case 5:
+                    reg_value = read_register(memory, inst.register_x);
+                    reg_value_y = read_register(memory, inst.register_y);
+                    uint8_t sub = reg_value - reg_value_y;
+                    write_register(memory,inst.register_x, sub);
+                    write_register(memory,0xF, sub > reg_value ? 0 : 1);
+                    break;
+                case 6:
+                    reg_value_y = read_register(memory, inst.register_y);
+                    write_register(memory,inst.register_x, reg_value_y >> 1);
+                    write_register(memory,0xF, reg_value_y & 0x1);
+                    break;
+                case 7:
+                    reg_value = read_register(memory, inst.register_x);
+                    reg_value_y = read_register(memory, inst.register_y);
+                    sub = reg_value_y - reg_value;
+                    write_register(memory,inst.register_x, sub);
+                    write_register(memory,0xF, sub > reg_value_y ? 0 : 1);
+                    break;
+                case 0xE:
+                    reg_value_y = read_register(memory, inst.register_y);
+                    write_register(memory,inst.register_x, reg_value_y << 1);
+                    write_register(memory,0xF, reg_value_y >> 7);
+                    break;
+                default: printf("Unknown instruction");
+            }
+        case 9:
+            //9xy0	skip next opcode if Vx != Vy
+            reg_value = read_register(memory, inst.register_x);
+            reg_value_y = read_register(memory, inst.register_y);
+            if (reg_value != reg_value_y) {
+                memory->program_counter += 2;
+            }
+            break;
+        case 0xA:
+            memory->address_register = inst.address;
+            break;
+        case 0xB:
+
+            break;
 
         default: printf("Instruction not found or implemented: %d", inst.opcode);
     }
