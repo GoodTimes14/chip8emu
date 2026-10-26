@@ -78,10 +78,6 @@ extern int mem_check_bounds(uint16_t address);
 
 extern void clear_display(struct chip8_mem* memory);
 
-extern void read_register(struct chip8_mem* memory, uint8_t reg_num);
-
-extern void write_register(struct chip8_mem* memory, uint8_t reg_num, uint8_t val);
-
 extern void mem_write(struct chip8_mem* memory, uint16_t address, uint8_t val);
 
 extern uint8_t mem_read(struct chip8_mem* memory, uint16_t address);
