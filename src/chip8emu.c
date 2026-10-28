@@ -27,7 +27,7 @@ void add_font_memory(struct chip8_mem* memory) {
 
 uint16_t fetch_inst(struct chip8_mem *memory) {
     //Fetch dell'istruzione: mem_read di PC è l'high byte mentre PC + 1 è low byte
-    uint16_t instruction = ((uint16_t) mem_read(memory, memory->program_counter) << 8) |mem_read(memory, memory->program_counter + 1);
+    uint16_t instruction = ((uint16_t) mem_read(memory, memory->program_counter) << 8) | mem_read(memory, memory->program_counter + 1);
 
     return instruction;
 }
@@ -226,8 +226,20 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
             memory->address_register = inst.address;
             break;
         case 0xB:
+            uint16_t jump_addr = inst.address + (uint16_t) read_register(memory,0);
+            jump_addr &= PROGRAM_END;
+            memory->program_counter = jump_addr;
 
             break;
+        case 0xC:
+
+            write_register(memory,inst.register_x, vip_next_random_byte(memory) & inst.kk_value);
+            break;
+        case 0xD:
+
+            break;
+        
+
 
         default: printf("Instruction not found or implemented: %d", inst.opcode);
     }
@@ -262,6 +274,35 @@ uint8_t read_register(struct chip8_mem* memory, uint8_t reg_num) {
     }
 
     return mem_read(memory, 0xEF0 + (uint16_t) reg_num);
+}
+
+uint8_t vip_next_random_byte(struct chip8_mem *memory) {
+
+    memory->seed = (uint16_t)(memory->seed + 1u);
+
+    uint8_t lo = (uint8_t)(memory->seed & 0xFFu);
+    uint8_t hi = (uint8_t)(memory->seed >> 8);
+
+    uint8_t b = vip_random_table[lo];
+
+    /* 01DE–01E0  D = M(RE) + R9.1 ; bit 8 of sum is DF */
+    uint16_t sum = (uint16_t)(b + hi);
+
+    /* 01E1  STR 6 — low byte of sum goes to VX (temporary) */
+    uint8_t tmp = (uint8_t)(sum & 0xFFu);
+
+    /* 01E2  SHRC — 9-bit shift right: DF enters bit 7 */
+    uint8_t half = (uint8_t)(sum >> 1);
+
+    /* 01E3–01E4  D = M(R6) + D ; carry discarded */
+    uint8_t r = (uint8_t)(tmp + half);
+
+    /* 01E5  PHI 9 — result becomes the new seed high byte; low byte untouched */
+    memory->seed = (uint16_t)(((uint16_t)r << 8) | lo);
+
+    /* 01E6–01E9  VX = r & kk is done by the caller */
+    return r;
+
 }
 
 void write_register(struct chip8_mem* memory, uint8_t reg_num, uint8_t value) {
