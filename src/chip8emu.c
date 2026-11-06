@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include "chip8emu.h"
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
+
+int locked_key = -1;
 
 int main(void) {
     init_chip8emu();
@@ -232,13 +235,87 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
 
             break;
         case 0xC:
+            //Cxkk	set Vx to a random byte masked (bitwise AND) with kk
 
             write_register(memory,inst.register_x, vip_next_random_byte(memory) & inst.kk_value);
             break;
         case 0xD:
+            //Dxyn	draw 8×n pixel graphics at position Vx & 63, Vy & 31 with data from memory, starting at the address in I, I is not changed
+            reg_value = read_register(memory,inst.register_x) & 63;
+            reg_value_y = read_register(memory,inst.register_x) & 31;
+            uint8_t collision = 0;
+            for (uint8_t row = 0; row < inst.n_value; row++) {
+                uint8_t py = reg_value_y + row;
+                if (py >= 32) break;
+
+                uint8_t bits = mem_read(memory, memory->address_register + row & 0xFFF);
+                for (uint8_t col = 0; col < 8; col++) {
+                    uint8_t px = reg_value + col;
+                    if (px >= 64) break;
+                    uint8_t b = bits & (128 >> col);
+                    if (b) {
+                        if (memory->display[64 * py + px]) collision = 1;
+
+                        memory->display[64 * py + px] ^= 1;
+                    }
+                }
+            }
+
+            write_register(memory,0xF, collision);
+            break;
+        case 0xE:
+            reg_value = read_register(memory, inst.register_x);
+            uint16_t pressed_value = (memory->keyboard >> (reg_value & 0xF)) & 1;
+            uint16_t reg_expect = inst.kk_value == 0x9E ? 1 : 0;
+            if (reg_expect == pressed_value) {
+                memory->program_counter += 2;
+            }
+            break;
+        case 0xF:
+
+            switch (inst.kk_value) {
+                case 0x0A:
+                    if (locked_key == -1) {
+                        for (int i = 0;i < 0xF;i++) {
+                            uint16_t value = (memory->keyboard >> i) & 1;
+                            if (value) locked_key = value; break;
+                        }
+                    }
+
+                    if (locked_key != -1) {
+                        if (!poll_key_state(memory, locked_key)) {
+                            memory->program_counter -= 2;
+
+                        } else {
+                            write_register(memory, inst.register_x, locked_key);
+                            locked_key = -1;
+                        }
+                    }
+                    break;
+                case 0x15:
+                    reg_value = read_register(memory,inst.register_x);
+                    memory->delay_timer = reg_value;
+
+                    break;
+                case 0x18:
+                    reg_value = read_register(memory,inst.register_x);
+                    memory->sound_timer = reg_value;
+
+                    break;
+                case 0x1E:
+                    reg_value = read_register(memory,inst.register_x);
+                    memory->address_register += reg_value;
+
+                    break;
+                case 0x29:
+                    reg_value = read_register(memory,inst.register_x);
+                    uint8_t offset = mem_read(memory, VIP_FONT_ADDR + (reg_value & 0xF));
+                    memory->address_register = VIP_FONT_ADDR + offset;
+                    
+                    break;
+            }
 
             break;
-        
 
 
         default: printf("Instruction not found or implemented: %d", inst.opcode);
@@ -322,6 +399,24 @@ int mem_check_bounds(const uint16_t address) {
 
 void clear_display(struct chip8_mem *memory) {
     memset(memory->display,0, sizeof(memory->display));
+}
+
+void poll_inputs(struct chip8_mem *memory) {
+
+    //TODO: Aggiungere Poll degli input con SDL
+    uint16_t keyvals = 0;
+    for (int x = 0;x < 0xF;x++) {
+        bool pressed = false;
+        if (pressed) {
+            keyvals |= 1 << x;
+        }
+    }
+
+    memory->keyboard = keyvals;
+}
+
+uint16_t poll_key_state(struct chip8_mem *memory, uint8_t key_index) {
+    return (memory->keyboard >> key_index) & 1;
 }
 
 void mem_write(struct chip8_mem* memory, uint16_t address, uint8_t val) {

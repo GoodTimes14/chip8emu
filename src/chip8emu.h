@@ -77,6 +77,7 @@ struct chip8_mem {
     uint8_t delay_timer;
     uint8_t sound_timer;
     uint16_t stack_pointer;
+    uint16_t keyboard;
     uint8_t memory[RAM_SIZE];
     uint8_t rom[ROM_SIZE];
     uint8_t display[DISPLAY_SIZE];
@@ -117,6 +118,10 @@ extern void write_register(struct chip8_mem* memory, uint8_t reg_num, uint8_t va
 extern int mem_check_bounds(uint16_t address);
 
 extern void clear_display(struct chip8_mem* memory);
+
+extern void poll_inputs(struct chip8_mem* memory);
+
+extern uint16_t poll_key_state(struct chip8_mem* memory,  uint8_t key_index);
 
 extern void mem_write(struct chip8_mem* memory, uint16_t address, uint8_t val);
 
