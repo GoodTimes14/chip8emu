@@ -5,7 +5,8 @@
 #ifndef CHIP8EMU_CHIP8EMU_H
 #define CHIP8EMU_CHIP8EMU_H
 #include <stdint.h>
-
+#include <errno.h>
+#include <time.h>
 
 #define VIP_FONT_ADDR 0x8100
 #define ROM_REGION_START_ADDR 0x8000
@@ -17,6 +18,10 @@
 #define PROGRAM_START 0x0200
 #define PROGRAM_END 0x0E9F
 #define DISPLAY_SIZE 2048
+#define NS_PER_SEC 1000000000LL
+#define FRAME_HZ 60
+#define CYCLES_PER_FRAME 15
+#define MAX_CATCHUP_FRAMES 4
 
 uint8_t font_bits[] = {
     // Page offsets for 0 - F, e.g. 0x20 means 0x8120
@@ -70,6 +75,8 @@ static const uint8_t vip_random_table[256] = {
 };
 
 
+
+
 struct chip8_mem {
     uint16_t seed;
     uint16_t address_register;
@@ -93,6 +100,17 @@ struct chip8_instruction {
     uint16_t address;
 };
 
+static int64_t now_ns(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * NS_PER_SEC + ts.tv_nsec;
+}
+
+static void sleep_until(int64_t t) {
+    struct timespec ts = { .tv_sec = t / NS_PER_SEC, .tv_nsec = t % NS_PER_SEC };
+    while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL) == EINTR) {}
+}
+
 extern void reset(struct chip8_mem* memory);
 
 extern void add_font_memory(struct chip8_mem* memory);
@@ -100,6 +118,11 @@ extern void add_font_memory(struct chip8_mem* memory);
 extern uint16_t fetch_inst(struct chip8_mem* memory);
 
 extern int load_program(struct chip8_mem* memory, const char* file_name);
+
+extern void loop_program(struct chip8_mem* memory);
+
+extern void run_frame(struct chip8_mem* memory);
+
 
 extern struct chip8_instruction decode_inst(uint16_t instruction);
 

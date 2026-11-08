@@ -21,6 +21,7 @@ void init_chip8emu() {
     memory->program_counter = 0x200;
     memory->stack_pointer = 0xECF;
     load_program(memory, "chip8-logo.ch8");
+    loop_program(memory);
 }
 
 
@@ -60,6 +61,47 @@ int load_program(struct chip8_mem *memory, const char* file_name) {
     printf("Program loaded into memory! %s", file_name);
 
     return 0;
+}
+
+void loop_program(struct chip8_mem *memory) {
+    int64_t start = now_ns();
+    int64_t frame = 0;
+
+    for (;;) {
+        int64_t due = (now_ns() - start) * FRAME_HZ / NS_PER_SEC;
+        if (due - frame > MAX_CATCHUP_FRAMES) frame = due - MAX_CATCHUP_FRAMES;
+
+        if (frame < due) {
+            poll_inputs(memory);
+            while (frame < due) {
+                printf("Frame %lld started\n", (long long) frame);
+                run_frame(memory);
+                printf("Frame %lld finished\n", (long long) frame);
+                frame++;
+            }
+            //Draw frame with SDL
+        }
+
+        sleep_until(start + (frame + 1) * NS_PER_SEC / FRAME_HZ);
+    }
+}
+
+void run_frame(struct chip8_mem *memory) {
+
+    for (int i = 0;i < CYCLES_PER_FRAME;i++) {
+        struct chip8_instruction inst = decode_inst(fetch_inst(memory));
+        
+        printf("Executing instruction 0x%04X\n", inst.full_inst);
+        memory->program_counter += 2;
+
+        exec_inst(memory, inst);
+
+        if (inst.opcode == 0xD) break;   // VIP: a sprite draw waits for vblank
+    }
+
+
+    if (memory->sound_timer != 0) memory->sound_timer--;
+    if (memory->delay_timer != 0) memory->delay_timer--;
 }
 
 struct chip8_instruction decode_inst(uint16_t instruction) {
@@ -107,7 +149,7 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                 fprintf(stderr, "Jumping out of program memory bounds, aborting...");
                 exit(-1);
             }
-
+            memory->program_counter = inst.address;
             break;
         case 2:
             //2mmm: push return address onto stack and call subroutine at address mmm
@@ -312,6 +354,36 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                     uint8_t offset = mem_read(memory, VIP_FONT_ADDR + (reg_value & 0xF));
                     memory->address_register = VIP_FONT_ADDR + offset;
                     
+                    break;
+                case 0x33:
+                    //Fx33	write the value of Vx as BCD value to memory at the addresses I (hundreds), I+1 (tens) and I+2 (ones)
+                    reg_value = read_register(memory,inst.register_x);
+                    uint8_t hundreds = reg_value / 100;
+                    uint8_t tens = (reg_value / 10) % 10;
+                    uint8_t ones = reg_value % 10;
+
+                    mem_write(memory,memory->address_register,hundreds);
+                    mem_write(memory,memory->address_register + 1,tens);
+                    mem_write(memory,memory->address_register + 2,ones);
+
+
+                    break;
+                case 0x55:
+
+                    //Fx55	write the content of V0 to Vx at the memory pointed to by I, I is incremented by x+1
+                    for (int i = 0;i <= inst.register_x;i++) {
+                        reg_value = read_register(memory,i);
+                        mem_write(memory,memory->address_register++, reg_value);
+                    }
+
+                    break;
+                case 0x65:
+                    //Fx65	read the bytes from memory pointed to by I into the registers V0 to Vx, I is incremented by x+1
+
+                    for (int i = 0;i <= inst.register_x;i++) {
+                        uint8_t read_value = mem_read(memory, memory->address_register++);
+                        write_register(memory,i,read_value);
+                    }
                     break;
             }
 
