@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <errno.h>
 #include <time.h>
+#include <SDL3/SDL_scancode.h>
 
 #define VIP_FONT_ADDR 0x8100
 #define ROM_REGION_START_ADDR 0x8000
@@ -75,6 +76,20 @@ static const uint8_t vip_random_table[256] = {
     /* 0x01F8 */ 0x00, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x00, 0x4B
 };
 
+/*
+ *VIP keypad    Your keyboard
+ *1 2 3 C       1 2 3 4
+ *4 5 6 D       Q W E R
+ *7 8 9 E       A S D F
+ *A 0 B F       Z X C V
+ */
+
+static const SDL_Scancode keymap[16] = {
+    SDL_SCANCODE_X, SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3,   // 0 1 2 3
+    SDL_SCANCODE_Q, SDL_SCANCODE_W, SDL_SCANCODE_E, SDL_SCANCODE_A,   // 4 5 6 7
+    SDL_SCANCODE_S, SDL_SCANCODE_D, SDL_SCANCODE_Z, SDL_SCANCODE_C,   // 8 9 A B
+    SDL_SCANCODE_4, SDL_SCANCODE_R, SDL_SCANCODE_F, SDL_SCANCODE_V,   // C D E F
+};
 
 
 

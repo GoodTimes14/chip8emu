@@ -258,19 +258,19 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                     reg_value = read_register(memory, inst.register_x);
                     reg_value_y = read_register(memory, inst.register_y);
 
-                    write_register(memory,inst.register_y, reg_value | reg_value_y);
+                    write_register(memory,inst.register_x, reg_value | reg_value_y);
                     write_register(memory,0xF, 0);
                     break;
                 case 2:
                     reg_value = read_register(memory, inst.register_x);
                     reg_value_y = read_register(memory, inst.register_y);
-                    write_register(memory,inst.register_y, reg_value & reg_value_y);
+                    write_register(memory,inst.register_x, reg_value & reg_value_y);
                     write_register(memory,0xF, 0);
                     break;
                 case 3:
                     reg_value = read_register(memory, inst.register_x);
                     reg_value_y = read_register(memory, inst.register_y);
-                    write_register(memory,inst.register_y, reg_value ^ reg_value_y);
+                    write_register(memory,inst.register_x, reg_value ^ reg_value_y);
                     write_register(memory,0xF, 0);
                     break;
                 case 4:
@@ -375,6 +375,9 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
         case 0xF:
 
             switch (inst.kk_value) {
+                case 0x07:
+                    write_register(memory, inst.register_x, memory->delay_timer);
+                    break;
                 case 0x0A:
                     if (locked_key == -1) {
                         for (int i = 0;i < 0xF;i++) {
@@ -383,15 +386,13 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                         }
                     }
 
-                    if (locked_key != -1) {
-                        if (!poll_key_state(memory, locked_key)) {
-                            memory->program_counter -= 2;
-
-                        } else {
-                            write_register(memory, inst.register_x, locked_key);
-                            locked_key = -1;
-                        }
+                    if (locked_key == -1 || poll_key_state(memory, locked_key)) {
+                        memory->program_counter -= 2;
+                    } else {
+                        write_register(memory, inst.register_x, locked_key);
+                        locked_key = -1;
                     }
+
                     break;
                 case 0x15:
                     reg_value = read_register(memory,inst.register_x);
@@ -538,13 +539,10 @@ void poll_inputs(struct chip8_mem *memory) {
         if (event.type == SDL_EVENT_QUIT) running = false;
     }
 
-    //TODO: Aggiungere Poll degli input con SDL
+    const bool *keys = SDL_GetKeyboardState(NULL);
     uint16_t keyvals = 0;
-    for (int x = 0;x < 0xF;x++) {
-        bool pressed = false;
-        if (pressed) {
-            keyvals |= 1 << x;
-        }
+    for (int x = 0; x < 16; x++) {
+        if (keys[keymap[x]]) keyvals |= 1 << x;
     }
 
     memory->keyboard = keyvals;
