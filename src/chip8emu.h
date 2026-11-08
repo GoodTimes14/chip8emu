@@ -22,6 +22,7 @@
 #define FRAME_HZ 60
 #define CYCLES_PER_FRAME 15
 #define MAX_CATCHUP_FRAMES 4
+#define WINDOW_SCALE 10
 
 uint8_t font_bits[] = {
     // Page offsets for 0 - F, e.g. 0x20 means 0x8120
@@ -119,10 +120,11 @@ extern uint16_t fetch_inst(struct chip8_mem* memory);
 
 extern int load_program(struct chip8_mem* memory, const char* file_name);
 
+extern void init_SDL();
+
 extern void loop_program(struct chip8_mem* memory);
 
 extern void run_frame(struct chip8_mem* memory);
-
 
 extern struct chip8_instruction decode_inst(uint16_t instruction);
 
@@ -150,6 +152,6 @@ extern void mem_write(struct chip8_mem* memory, uint16_t address, uint8_t val);
 
 extern uint8_t mem_read(struct chip8_mem* memory, uint16_t address);
 
-extern void init_chip8emu();
+extern void init_chip8emu(char* rom_name);
 
 #endif //CHIP8EMU_CHIP8EMU_H

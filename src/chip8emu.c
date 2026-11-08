@@ -4,24 +4,41 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <SDL3/SDL.h>
 
+static SDL_Window* window;
+static SDL_Renderer* renderer;
+static SDL_Texture* texture;
+
+static bool running = true;
 
 int locked_key = -1;
 
-int main(void) {
-    init_chip8emu();
+int main(int argc, char *argv[]) {
+    char* rom_name = "chip8-logo.ch8";
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--rom") == 0 && i + 1 < argc)
+            rom_name = argv[++i];
+    }
+
+    init_chip8emu(rom_name);
 
 
     return 0;
 }
 
-void init_chip8emu() {
+void init_chip8emu(char* rom_name) {
     struct chip8_mem* memory = calloc(1, sizeof(struct chip8_mem));
     add_font_memory(memory);
     memory->program_counter = 0x200;
     memory->stack_pointer = 0xECF;
-    load_program(memory, "chip8-logo.ch8");
+    init_SDL();
+    load_program(memory, rom_name);
     loop_program(memory);
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
 
 
@@ -63,11 +80,32 @@ int load_program(struct chip8_mem *memory, const char* file_name) {
     return 0;
 }
 
+void init_SDL() {
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        fprintf(stderr, "Can't init SDL");
+        exit(-1);
+    }
+
+    if (!SDL_CreateWindowAndRenderer("CHIP-8",64 * WINDOW_SCALE, 32 * WINDOW_SCALE,0,&window,&renderer)) {
+        fprintf(stderr, "Can't create window and renderer");
+        exit(-1);
+    }
+
+    texture = SDL_CreateTexture(renderer,SDL_PIXELFORMAT_INDEX8,SDL_TEXTUREACCESS_STREAMING,64,32);
+    SDL_Palette* palette = SDL_CreatePalette(2);
+    const SDL_Color colors[2] = {{0, 0, 0, 255}, {255, 255, 255, 255}};
+    SDL_SetPaletteColors(palette, colors, 0, 2);
+    SDL_SetTexturePalette(texture, palette);
+    SDL_DestroyPalette(palette);    // the texture keeps its own reference
+
+    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+}
+
 void loop_program(struct chip8_mem *memory) {
     int64_t start = now_ns();
     int64_t frame = 0;
 
-    for (;;) {
+    while (running) {
         int64_t due = (now_ns() - start) * FRAME_HZ / NS_PER_SEC;
         if (due - frame > MAX_CATCHUP_FRAMES) frame = due - MAX_CATCHUP_FRAMES;
 
@@ -79,7 +117,10 @@ void loop_program(struct chip8_mem *memory) {
                 printf("Frame %lld finished\n", (long long) frame);
                 frame++;
             }
-            //Draw frame with SDL
+
+            SDL_UpdateTexture(texture, NULL, memory->display, 64);
+            SDL_RenderTexture(renderer, texture, NULL, NULL);
+            SDL_RenderPresent(renderer);
         }
 
         sleep_until(start + (frame + 1) * NS_PER_SEC / FRAME_HZ);
@@ -158,7 +199,7 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                 exit(-1);
             }
 
-            uint16_t pc_stack = memory->program_counter + 2;
+            uint16_t pc_stack = memory->program_counter;
             push_stack(memory,pc_stack & 0xFF);
             push_stack(memory,pc_stack >> 8);
 
@@ -192,6 +233,7 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
         case 7:
             reg_value = read_register(memory, inst.register_x);
             write_register(memory,inst.register_x, reg_value + inst.kk_value);
+            break;
         case 8:
             /* 8xy0	set Vx to the value of Vy
              * 8xy1	set Vx to the result of bitwise Vx OR Vy, set VF to 0, even if x is F! (VF is written last)
@@ -257,7 +299,9 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                     write_register(memory,inst.register_x, reg_value_y << 1);
                     write_register(memory,0xF, reg_value_y >> 7);
                     break;
-                default: printf("Unknown instruction");
+                default:
+                    printf("Unknown instruction");
+                    break;
             }
         case 9:
             //9xy0	skip next opcode if Vx != Vy
@@ -284,13 +328,13 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
         case 0xD:
             //Dxyn	draw 8×n pixel graphics at position Vx & 63, Vy & 31 with data from memory, starting at the address in I, I is not changed
             reg_value = read_register(memory,inst.register_x) & 63;
-            reg_value_y = read_register(memory,inst.register_x) & 31;
+            reg_value_y = read_register(memory,inst.register_y) & 31;
             uint8_t collision = 0;
             for (uint8_t row = 0; row < inst.n_value; row++) {
                 uint8_t py = reg_value_y + row;
                 if (py >= 32) break;
 
-                uint8_t bits = mem_read(memory, memory->address_register + row & 0xFFF);
+                uint8_t bits = mem_read(memory, memory->address_register + row);
                 for (uint8_t col = 0; col < 8; col++) {
                     uint8_t px = reg_value + col;
                     if (px >= 64) break;
@@ -402,7 +446,7 @@ void push_stack(struct chip8_mem *memory, uint8_t value) {
         return;
     }
 
-    mem_write(memory, --memory->stack_pointer, value);
+    mem_write(memory, memory->stack_pointer--, value);
 }
 
 uint8_t pop_stack(struct chip8_mem *memory) {
@@ -474,6 +518,10 @@ void clear_display(struct chip8_mem *memory) {
 }
 
 void poll_inputs(struct chip8_mem *memory) {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_EVENT_QUIT) running = false;
+    }
 
     //TODO: Aggiungere Poll degli input con SDL
     uint16_t keyvals = 0;
