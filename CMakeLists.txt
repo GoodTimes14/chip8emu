@@ -4,5 +4,7 @@ project(chip8emu C)
 set(CMAKE_C_STANDARD 99)
 
 
+find_package(SDL3 REQUIRED CONFIG)
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_subdirectory(src)
