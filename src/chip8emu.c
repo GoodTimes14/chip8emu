@@ -91,7 +91,7 @@ void run_frame(struct chip8_mem *memory) {
     for (int i = 0;i < CYCLES_PER_FRAME;i++) {
         struct chip8_instruction inst = decode_inst(fetch_inst(memory));
         
-        printf("Executing instruction 0x%04X\n", inst.full_inst);
+        printf("[0x%04X] Executing instruction 0x%04X\n", memory->program_counter, inst.full_inst);
         memory->program_counter += 2;
 
         exec_inst(memory, inst);
