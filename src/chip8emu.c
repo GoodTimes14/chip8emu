@@ -207,6 +207,7 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
             break;
         case 3:
             uint8_t reg_value = read_register(memory, inst.register_x);
+            printf("cmpeqK: %d = %d \n",reg_value, inst.kk_value);
             if (reg_value == inst.kk_value) {
                 memory->program_counter += 2;
             }
@@ -214,6 +215,8 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
             break;
         case 4:
             reg_value = read_register(memory, inst.register_x);
+            printf("cmpdiseqK: %d != %d \n",reg_value, inst.kk_value);
+
             if (reg_value != inst.kk_value) {
                 memory->program_counter += 2;
             }
@@ -222,6 +225,7 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
         case 5:
             reg_value = read_register(memory, inst.register_x);
             uint8_t reg_value_y = read_register(memory, inst.register_y);
+            printf("cmpeq: %d = %d \n",reg_value, reg_value_y);
             if (reg_value == reg_value_y) {
                 memory->program_counter += 2;
             }
@@ -247,12 +251,13 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
              */
             switch (inst.n_value) {
                 case 0:
-                    reg_value = read_register(memory, inst.register_x);
-                    write_register(memory,inst.register_y, reg_value);
+                    reg_value = read_register(memory, inst.register_y);
+                    write_register(memory,inst.register_x, reg_value);
                     break;
                 case 1:
                     reg_value = read_register(memory, inst.register_x);
                     reg_value_y = read_register(memory, inst.register_y);
+
                     write_register(memory,inst.register_y, reg_value | reg_value_y);
                     write_register(memory,0xF, 0);
                     break;
@@ -272,6 +277,7 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                     reg_value = read_register(memory, inst.register_x);
                     reg_value_y = read_register(memory, inst.register_y);
                     uint8_t sum = reg_value + reg_value_y;
+                    printf("sum: %d + %d = %d",reg_value, reg_value_y, sum);
                     write_register(memory,inst.register_x, sum);
                     write_register(memory,0xF, sum < reg_value ? 1 : 0);
                     break;
@@ -284,6 +290,8 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                     break;
                 case 6:
                     reg_value_y = read_register(memory, inst.register_y);
+                    printf("shift >>: %d", reg_value_y >> 1);
+
                     write_register(memory,inst.register_x, reg_value_y >> 1);
                     write_register(memory,0xF, reg_value_y & 0x1);
                     break;
@@ -291,11 +299,14 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                     reg_value = read_register(memory, inst.register_x);
                     reg_value_y = read_register(memory, inst.register_y);
                     sub = reg_value_y - reg_value;
+                    printf("sub: %d - %d = %d",reg_value_y, reg_value, sub);
                     write_register(memory,inst.register_x, sub);
                     write_register(memory,0xF, sub > reg_value_y ? 0 : 1);
                     break;
                 case 0xE:
                     reg_value_y = read_register(memory, inst.register_y);
+                    printf("shift <<: %d", reg_value_y << 1);
+
                     write_register(memory,inst.register_x, reg_value_y << 1);
                     write_register(memory,0xF, reg_value_y >> 7);
                     break;
@@ -303,10 +314,13 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                     printf("Unknown instruction");
                     break;
             }
+            break;
         case 9:
             //9xy0	skip next opcode if Vx != Vy
             reg_value = read_register(memory, inst.register_x);
             reg_value_y = read_register(memory, inst.register_y);
+            printf("cmpdiseq: %d != %d \n",reg_value, reg_value_y);
+
             if (reg_value != reg_value_y) {
                 memory->program_counter += 2;
             }
@@ -316,7 +330,6 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
             break;
         case 0xB:
             uint16_t jump_addr = inst.address + (uint16_t) read_register(memory,0);
-            jump_addr &= PROGRAM_END;
             memory->program_counter = jump_addr;
 
             break;
@@ -353,6 +366,8 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
             reg_value = read_register(memory, inst.register_x);
             uint16_t pressed_value = (memory->keyboard >> (reg_value & 0xF)) & 1;
             uint16_t reg_expect = inst.kk_value == 0x9E ? 1 : 0;
+            printf("cmppoll: %d = %d \n",reg_value, pressed_value);
+
             if (reg_expect == pressed_value) {
                 memory->program_counter += 2;
             }
