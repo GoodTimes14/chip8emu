@@ -9,6 +9,8 @@
 static SDL_Window* window;
 static SDL_Renderer* renderer;
 static SDL_Texture* texture;
+static SDL_AudioStream* audio_stream;
+static SDL_AtomicInt beep_on;
 
 static bool running = true;
 
@@ -33,10 +35,13 @@ void init_chip8emu(char* rom_name) {
     memory->program_counter = 0x200;
     memory->stack_pointer = 0xECF;
     init_SDL();
-    load_program(memory, rom_name);
-    loop_program(memory);
+    init_SDL_audio();
+    if (load_program(memory, rom_name) > 0) {
+        loop_program(memory);
+    }
 
     SDL_DestroyRenderer(renderer);
+    SDL_DestroyAudioStream(audio_stream);
     SDL_DestroyWindow(window);
     SDL_Quit();
 }
@@ -77,7 +82,7 @@ int load_program(struct chip8_mem *memory, const char* file_name) {
     memcpy(&memory->memory[0x200], buffer,PROGRAM_SIZE_LIMIT);
     printf("Program loaded into memory! %s", file_name);
 
-    return 0;
+    return 1;
 }
 
 void init_SDL() {
@@ -101,6 +106,44 @@ void init_SDL() {
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
 }
 
+
+void init_SDL_audio(void) {
+    if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
+        fprintf(stderr, "No audio, running silently: %s\n", SDL_GetError());
+        return;
+    }
+
+    const SDL_AudioSpec spec = { SDL_AUDIO_S16, 1, AUDIO_RATE };
+    audio_stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, callback_beep_sampling, NULL);
+    if (audio_stream == NULL) {
+        fprintf(stderr, "No audio, running silently: %s\n", SDL_GetError());
+        return;
+    }
+
+    SDL_ResumeAudioStreamDevice(audio_stream);
+}
+
+void callback_beep_sampling(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount) {
+    static int phase = 0;
+    int16_t samples[512];
+    int remaining = additional_amount / (int) sizeof(int16_t);
+    bool on = SDL_GetAtomicInt(&beep_on) != 0;
+
+    while (remaining > 0) {
+        int count = remaining < 512 ? remaining : 512;
+        for (int i = 0; i < count; i++) {
+            if (on) {
+                samples[i] = phase < AUDIO_RATE / 2 ? BEEP_VOLUME : -BEEP_VOLUME;
+                phase = (phase + BEEP_HZ) % AUDIO_RATE;
+            } else {
+                samples[i] = 0;
+            }
+        }
+        SDL_PutAudioStreamData(stream, samples, count * (int) sizeof(int16_t));
+        remaining -= count;
+    }
+}
+
 void loop_program(struct chip8_mem *memory) {
     int64_t start = now_ns();
     int64_t frame = 0;
@@ -118,7 +161,9 @@ void loop_program(struct chip8_mem *memory) {
                 frame++;
             }
 
-            SDL_UpdateTexture(texture, NULL, memory->display, 64);
+            uint8_t display[2048];
+            expand_display(memory,display);
+            SDL_UpdateTexture(texture, NULL, display, 64);
             SDL_RenderTexture(renderer, texture, NULL, NULL);
             SDL_RenderPresent(renderer);
         }
@@ -141,6 +186,8 @@ void run_frame(struct chip8_mem *memory) {
     }
 
 
+    SDL_SetAtomicInt(&beep_on, memory->sound_timer != 0);
+    memory->seed++;
     if (memory->sound_timer != 0) memory->sound_timer--;
     if (memory->delay_timer != 0) memory->delay_timer--;
 }
@@ -353,9 +400,12 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                     if (px >= 64) break;
                     uint8_t b = bits & (128 >> col);
                     if (b) {
-                        if (memory->display[64 * py + px]) collision = 1;
+                        uint16_t fb_addr = DISPLAY_START + 8 * py + px / 8;
+                        uint8_t fb_bit = 0x80 >> (px % 8);
+                        uint8_t fb_byte = mem_read(memory, fb_addr);
 
-                        memory->display[64 * py + px] ^= 1;
+                        if (fb_byte & fb_bit) collision = 1;
+                        mem_write(memory, fb_addr, fb_byte ^ fb_bit);
                     }
                 }
             }
@@ -380,9 +430,12 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
                     break;
                 case 0x0A:
                     if (locked_key == -1) {
-                        for (int i = 0;i < 0xF;i++) {
+                        for (int i = 0;i <= 0xF;i++) {
                             uint16_t value = (memory->keyboard >> i) & 1;
-                            if (value) locked_key = value; break;
+                            if (value) {
+                                locked_key = i;
+                                break;
+                            }
                         }
                     }
 
@@ -456,7 +509,7 @@ void exec_inst(struct chip8_mem *memory, struct chip8_instruction inst) {
 }
 
 void push_stack(struct chip8_mem *memory, uint8_t value) {
-    if (memory->stack_pointer == STACK_LOW) {
+    if (memory->stack_pointer < STACK_LOW) {
         fprintf(stderr,"Stack overflow, aborting...");
         exit(-1);
         return;
@@ -530,7 +583,7 @@ int mem_check_bounds(const uint16_t address) {
 
 
 void clear_display(struct chip8_mem *memory) {
-    memset(memory->display,0, sizeof(memory->display));
+    memset(&memory->memory[DISPLAY_START], 0, DISPLAY_END - DISPLAY_START + 1);
 }
 
 void poll_inputs(struct chip8_mem *memory) {

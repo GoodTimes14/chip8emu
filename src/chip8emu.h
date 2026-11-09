@@ -13,6 +13,11 @@
 #define ROM_REGION_START_ADDR 0x8000
 #define STACK_LOW 0x0EA0
 #define STACK_TOP 0x0ECF
+#define AUDIO_RATE 44100
+#define BEEP_HZ 440
+#define BEEP_VOLUME 3000
+#define DISPLAY_START 0xF00
+#define DISPLAY_END 0xFFF
 #define RAM_SIZE 4096
 #define ROM_SIZE 512
 #define PROGRAM_SIZE_LIMIT ((RAM_SIZE - 352) - 0x200)
@@ -103,7 +108,6 @@ struct chip8_mem {
     uint16_t keyboard;
     uint8_t memory[RAM_SIZE];
     uint8_t rom[ROM_SIZE];
-    uint8_t display[DISPLAY_SIZE];
 };
 
 struct chip8_instruction {
@@ -127,6 +131,15 @@ static void sleep_until(int64_t t) {
     while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL) == EINTR) {}
 }
 
+//Expands the display memory region to a simple uint8_t array so it can be digested by the SDL texture
+static void expand_display(const struct chip8_mem *memory, uint8_t *pixels) {
+    for (int i = 0; i < DISPLAY_SIZE; i++) {
+        uint8_t byte = memory->memory[DISPLAY_START + i / 8];
+        pixels[i] = (byte >> (7 - i % 8)) & 1;
+    }
+}
+
+
 extern void reset(struct chip8_mem* memory);
 
 extern void add_font_memory(struct chip8_mem* memory);
@@ -136,6 +149,11 @@ extern uint16_t fetch_inst(struct chip8_mem* memory);
 extern int load_program(struct chip8_mem* memory, const char* file_name);
 
 extern void init_SDL();
+
+extern void init_SDL_audio();
+
+extern void callback_beep_sampling();
+
 
 extern void loop_program(struct chip8_mem* memory);
 
@@ -152,6 +170,10 @@ extern uint8_t pop_stack(struct chip8_mem* memory);
 extern uint8_t read_register(struct chip8_mem* memory, uint8_t reg_num);
 
 extern uint8_t vip_next_random_byte(struct chip8_mem* memory);
+
+extern void write_frame_buffer(struct chip8_mem* memory, uint16_t index, uint8_t value);
+
+extern uint8_t read_frame_buffer(struct chip8_mem* memory, uint16_t index);
 
 extern void write_register(struct chip8_mem* memory, uint8_t reg_num, uint8_t value);
 
