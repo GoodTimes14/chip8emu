@@ -13,7 +13,7 @@ cmake --build build #Runs the build task
 ### Executing
 
 ```
-./chip8emu --rom <your-desired-rom.ch8> #if the --rom option is not defined it searches for the logo debug rom 'chip8-logo.ch8' i've used for testing 
+./build/bin/chip8emu --rom <your-desired-rom.ch8> #if the --rom option is not defined it searches for the logo debug rom 'chip8-logo.ch8' i've used for testing 
 ```
 
 ### Roadmap
