@@ -42,4 +42,4 @@ The CHIP-8 hex keypad is mapped to the left side of the keyboard:
 
 ### Documentation
 The documentation i've used for this project is the following: 
-- [https://chip8kb.gulrak.net/reference/variants/classic-chip-8/]
+- [Gulrak's CHIP-8 knowledge base](https://chip8kb.gulrak.net/reference/variants/classic-chip-8/)
