@@ -3,3 +3,11 @@
 /src/CMakeFiles/
 /build
 /.idea
+
+# CMake generated files
+/cmake-build-*/
+/CMakeCache.txt
+/Makefile
+/cmake_install.cmake
+/src/Makefile
+/src/cmake_install.cmake
