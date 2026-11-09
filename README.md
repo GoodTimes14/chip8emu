@@ -17,8 +17,8 @@ cmake --build build #Runs the build task
 ```
 
 ### Roadmap
-[x] Full VIP CHIP-8 emulation
-[ ] Compatibility options for SCHIP
+- [x] Full VIP CHIP-8 emulation
+- [ ] Compatibility options for SCHIP
 
 ### Documentation
 The documentation i've used for this project is the following: 
