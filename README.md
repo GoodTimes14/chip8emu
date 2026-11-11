@@ -1,6 +1,6 @@
 ## CHIP-8 Emulator
 This is my implementation of the COSMAC VIP CHIP-8 interpreter.
-I did not emulate the RCA CDP1802 (this means that i did not emulate the 0mmm instructions too) , this project emulates only the CHIP-8 interpreter and the memory layout
+I did not emulate the RCA CDP1802 (this means that i did not emulate the 0mmm instructions either) , this project emulates only the CHIP-8 interpreter and the memory layout
 (Aside from the random emulation that takes a page of the original interpreter and emulates the R9 register behaviour)
 
 ### Requirements
